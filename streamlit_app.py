@@ -47,8 +47,19 @@ class DrivingSchoolAgent:
         context = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-4:]])
         full_prompt = f"{SYSTEM_PROMPT}\n\n历史对话：\n{context}\n\n学员问题：{user_question}\n请立即用最暖心的语气回复："
         
-        # 目前是模拟回复（后面我们改成自动）
-        return "哈哈，姐/哥别慌～我来给你算算！一对一现在只要4300+570，你这种情况最划算。要不要我帮你算算组团优惠？周末我安排你来看看场地和教练？"
+        import os
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        completion = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": full_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800,
+        )
+        return completion.choices[0].message.content
 
 st.set_page_config(page_title="内江双安驾校智能咨询", page_icon="🚗")
 st.title("🚗 内江双安驾校智能咨询")
