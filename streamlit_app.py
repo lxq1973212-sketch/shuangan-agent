@@ -14,7 +14,7 @@ class KnowledgeBase:
 严格教学大纲：上车进卡、下车退卡、真实学时
 其他驾校常有隐形收费 + 练车时间不足，安全隐患大
 """
-        self.extra_knowledge = ""   # 后面上传的新知识会追加在这里
+        self.extra_knowledge = ""
 
     def add_knowledge(self, new_text: str):
         self.extra_knowledge += "\n\n【新知识】\n" + new_text.strip()
@@ -38,18 +38,13 @@ st.set_page_config(page_title="内江双安驾校智能咨询", page_icon="🚗"
 st.title("🚗 内江双安驾校智能咨询")
 st.caption("真人老教练在线，随时问报名、费用、优惠、考试～")
 
-# ==================== 侧边栏 - 知识库管理 ====================
+# 侧边栏知识库管理
 with st.sidebar:
     st.subheader("📚 知识库管理")
-    
-    # 初始化知识库（放在最前面，防止 AttributeError）
     if "kb" not in st.session_state:
         st.session_state.kb = KnowledgeBase()
 
-    uploaded_file = st.file_uploader("📤 上传新知识库（支持 txt / csv / xlsx）", 
-                                   type=["txt", "csv", "xlsx"], 
-                                   help="上传后智能体立即学习并永久记住")
-
+    uploaded_file = st.file_uploader("📤 上传新知识库（txt/csv/xlsx）", type=["txt", "csv", "xlsx"])
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".txt"):
@@ -57,29 +52,27 @@ with st.sidebar:
             else:
                 df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
                 new_text = df.to_string(index=False)
-            
             st.session_state.kb.add_knowledge(new_text)
-            st.success(f"✅ 已成功学习新知识！当前额外知识库已更新")
-        except Exception as e:
-            st.error(f"上传失败: {str(e)}")
+            st.success("✅ 新知识已学习！")
+        except:
+            st.error("上传失败，请检查文件格式")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🗑️ 清空额外知识库"):
+        if st.button("🗑️ 清空额外知识"):
             st.session_state.kb.extra_knowledge = ""
             st.success("已清空")
     with col2:
-        if st.button("📥 下载当前完整知识库"):
-            full = st.session_state.kb.get_full_knowledge()
-            st.download_button("点击下载", full, file_name="内江双安驾校知识库.txt")
+        if st.button("📥 下载知识库"):
+            st.download_button("下载", st.session_state.kb.get_full_knowledge(), "知识库.txt")
 
-# ==================== 聊天界面 ====================
+# ==================== 聊天 ====================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 if prompt := st.chat_input("输入你的问题，例如：一对一多少钱？"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -88,21 +81,24 @@ if prompt := st.chat_input("输入你的问题，例如：一对一多少钱？"
 
     with st.chat_message("assistant"):
         with st.spinner("教练正在思考..."):
-            full_prompt = f"{SYSTEM_PROMPT}\n\n当前完整知识库：\n{st.session_state.kb.get_full_knowledge()}\n\n历史对话：\n" + \
-                         "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]) + \
-                         f"\n\n学员问题：{prompt}\n请立即用最暖心的语气回复："
+            try:
+                full_prompt = f"{SYSTEM_PROMPT}\n\n当前完整知识库：\n{st.session_state.kb.get_full_knowledge()}\n\n历史对话：\n" + \
+                             "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]) + \
+                             f"\n\n学员问题：{prompt}\n请立即用最暖心的语气回复："
 
-            import os
-            from groq import Groq
-            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-            completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "system", "content": SYSTEM_PROMPT},
-                          {"role": "user", "content": full_prompt}],
-                temperature=0.7,
-                max_tokens=800,
-            )
-            response = completion.choices[0].message.content
+                import os
+                from groq import Groq
+                client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+                completion = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                              {"role": "user", "content": full_prompt}],
+                    temperature=0.7,
+                    max_tokens=800,
+                )
+                response = completion.choices[0].message.content
+            except Exception as e:
+                response = "教练这里网络有点小卡顿～您可以稍等几秒再问我，或者直接打电话给我！😊"
 
             st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
