@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# ==================== 知识库（支持动态上传） ====================
+# ==================== 知识库（支持动态上传）===================
 class KnowledgeBase:
     def __init__(self):
         self.school_name = "内江双安驾校"
@@ -39,35 +38,40 @@ st.set_page_config(page_title="内江双安驾校智能咨询", page_icon="🚗"
 st.title("🚗 内江双安驾校智能咨询")
 st.caption("真人老教练在线，随时问报名、费用、优惠、考试～")
 
-# 侧边栏 - 知识库管理
+# ==================== 侧边栏 - 知识库管理 ====================
 with st.sidebar:
     st.subheader("📚 知识库管理")
     
-    uploaded_file = st.file_uploader("📤 上传新知识库（txt/csv/xlsx）", 
-                                   type=["txt", "csv", "xlsx"], 
-                                   help="上传后智能体立即学习")
-    
-    if uploaded_file is not None:
-        if uploaded_file.name.endswith(".txt"):
-            new_text = uploaded_file.getvalue().decode("utf-8")
-        else:
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-            new_text = df.to_string(index=False)
-        
-        st.session_state.kb.add_knowledge(new_text)
-        st.success(f"✅ 已成功学习 {len(new_text)} 个字符的新知识！")
-    
-    if st.button("🗑️ 清空额外知识库"):
-        st.session_state.kb.extra_knowledge = ""
-        st.success("已清空额外知识库")
-    
-    if st.button("📥 下载当前完整知识库"):
-        full = st.session_state.kb.get_full_knowledge()
-        st.download_button("点击下载 knowledge.txt", full, file_name="knowledge.txt")
+    # 初始化知识库（放在最前面，防止 AttributeError）
+    if "kb" not in st.session_state:
+        st.session_state.kb = KnowledgeBase()
 
-# 初始化知识库
-if "kb" not in st.session_state:
-    st.session_state.kb = KnowledgeBase()
+    uploaded_file = st.file_uploader("📤 上传新知识库（支持 txt / csv / xlsx）", 
+                                   type=["txt", "csv", "xlsx"], 
+                                   help="上传后智能体立即学习并永久记住")
+
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".txt"):
+                new_text = uploaded_file.getvalue().decode("utf-8")
+            else:
+                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                new_text = df.to_string(index=False)
+            
+            st.session_state.kb.add_knowledge(new_text)
+            st.success(f"✅ 已成功学习新知识！当前额外知识库已更新")
+        except Exception as e:
+            st.error(f"上传失败: {str(e)}")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ 清空额外知识库"):
+            st.session_state.kb.extra_knowledge = ""
+            st.success("已清空")
+    with col2:
+        if st.button("📥 下载当前完整知识库"):
+            full = st.session_state.kb.get_full_knowledge()
+            st.download_button("点击下载", full, file_name="内江双安驾校知识库.txt")
 
 # ==================== 聊天界面 ====================
 if "messages" not in st.session_state:
@@ -84,21 +88,17 @@ if prompt := st.chat_input("输入你的问题，例如：一对一多少钱？"
 
     with st.chat_message("assistant"):
         with st.spinner("教练正在思考..."):
-            # 构造完整提示词
             full_prompt = f"{SYSTEM_PROMPT}\n\n当前完整知识库：\n{st.session_state.kb.get_full_knowledge()}\n\n历史对话：\n" + \
                          "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]) + \
                          f"\n\n学员问题：{prompt}\n请立即用最暖心的语气回复："
 
-            # 调用 Groq
             import os
             from groq import Groq
             client = Groq(api_key=os.getenv("GROQ_API_KEY"))
             completion = client.chat.completions.create(
                 model="llama-3.1-8b-instant",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": full_prompt}
-                ],
+                messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                          {"role": "user", "content": full_prompt}],
                 temperature=0.7,
                 max_tokens=800,
             )
