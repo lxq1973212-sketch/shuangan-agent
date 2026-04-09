@@ -1,36 +1,54 @@
 import streamlit as st
+import random
 
-# ==================== 你的完整知识库（已硬编码） ====================
+# ==================== 多 Key 自动轮换 ====================
+API_KEYS = [
+    "w68B4JxyLxUY6TxiJoTFikjx",
+    "W5L3TFnZM8MqH_CSaKZqJ9i2",
+    "KRk6QVZz_8yFSjzaYcVkyEL7",
+    "YuHiZKR6KTHF7okKpnkUsyrX",
+    "xY-D-4LvyK24yttmtsXABYxd"
+]
+
+def get_groq_client():
+    """自动轮换 Key"""
+    random.shuffle(API_KEYS)  # 每次打乱顺序，避免总是用同一个
+    for key in API_KEYS:
+        try:
+            from groq import Groq
+            client = Groq(api_key=key)
+            # 测试一下是否可用
+            client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=10
+            )
+            return client
+        except:
+            continue
+    return None  # 所有 Key 都不可用
+
+# ==================== 最新知识库 ====================
 KNOWLEDGE = """
-【内江双安驾校完整学员问答库（11问）】
+【内江双安驾校最新价格（必须严格遵守）】
+一对一：培训费4400元 + 交警考试费570元，总共4970元
+一对二：培训费4100元 + 交警考试费570元，总共4670元
 
-1. 培训模式：一对一4400元（灵活）、一对二4100元（快节奏）、VIP6800元（包接送）
-2. 费用说明：只有培训费+570考试费，无其他隐藏收费，科目二三补考费全包
-3. 为什么比其他驾校贵：真实学时打卡，不混卡，安全第一
-4. 优惠政策：普通100元、资格证300元、学生组团800元
-5. 考场与练车：免费练科目二考场 + 免费科目三考试系统
-6. 拿证后终身免费陪练
-7. 真实打卡承诺
-8. 可以自由选教练，随时换教练
-9. 投诉机制直达校长
-10. 欢迎先来看场地
-11. 报名准备材料及最快练车时间
-
-核心价格必须严格遵守：
-- 一对一：4300元培训费 + 570元考试费
-- 一对多（含一对二）：4000元培训费 + 570元考试费
+教师/医生/护士/警官再优惠200元
+学生组团优惠800元
+包含科目二、三补考费 + 免费科目二考场 + 免费科目三考试系统 + 拿证后终身免费陪练
+严格真实学时打卡
 """
 
-# ==================== 系统提示词 ====================
 SYSTEM_PROMPT = f"""
 你是内江双安驾校的资深教练助理，说话像暖心实在的老教练（亲切、口语化、带四川暖心感）。
 
-必须100%严格使用以下知识库回答，绝不能编造价格：
+必须100%严格遵守以下价格，绝不能修改或遗漏：
 {KNOWLEDGE}
 
 回复铁律：
 1. 先暖心拉近距离（哈哈姐/哥别慌～）
-2. 直接说清楚价格、优惠、优势
+2. 直接报出培训费 + 考试费（考试费要说明是交给交警队的）
 3. 自然对比其他驾校但只讲事实
 4. 学员犹豫就鼓励“教学严是为了你以后开车真安全”
 5. 最后主动问下一步
@@ -38,7 +56,7 @@ SYSTEM_PROMPT = f"""
 
 st.set_page_config(page_title="内江双安驾校智能咨询", page_icon="🚗")
 st.title("🚗 内江双安驾校智能咨询")
-st.caption("真人老教练在线 · 已学习11个学员真实问答")
+st.caption("真人老教练在线 · 多 Key 自动切换 · 已学习11个学员真实问答")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -54,21 +72,22 @@ if prompt := st.chat_input("输入你的问题，例如：一对一多少钱？"
 
     with st.chat_message("assistant"):
         with st.spinner("教练正在思考..."):
-            full_prompt = f"{SYSTEM_PROMPT}\n\n历史对话：\n" + \
-                         "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]) + \
-                         f"\n\n学员问题：{prompt}\n请立即用最暖心的语气回复："
+            client = get_groq_client()
+            if client is None:
+                response = "教练这里网络有点小卡顿～您可以稍等几秒再问我，或者直接打电话给我！😊"
+            else:
+                full_prompt = f"{SYSTEM_PROMPT}\n\n历史对话：\n" + \
+                             "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]) + \
+                             f"\n\n学员问题：{prompt}\n请立即用最暖心的语气回复："
 
-            import os
-            from groq import Groq
-            client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-            completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "system", "content": SYSTEM_PROMPT},
-                          {"role": "user", "content": full_prompt}],
-                temperature=0.7,
-                max_tokens=800,
-            )
-            response = completion.choices[0].message.content
+                completion = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                              {"role": "user", "content": full_prompt}],
+                    temperature=0.7,
+                    max_tokens=800,
+                )
+                response = completion.choices[0].message.content
 
             st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
