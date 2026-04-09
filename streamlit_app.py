@@ -1,23 +1,22 @@
 import streamlit as st
 import random
 
-# ==================== 多 Key 自动轮换 ====================
+# ==================== 多 Key 自动轮换（最新5个Key） ====================
 API_KEYS = [
-    "w68B4JxyLxUY6TxiJoTFikjx",
-    "W5L3TFnZM8MqH_CSaKZqJ9i2",
-    "KRk6QVZz_8yFSjzaYcVkyEL7",
-    "YuHiZKR6KTHF7okKpnkUsyrX",
-    "xY-D-4LvyK24yttmtsXABYxd"
+    "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",
+    "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",
+    "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",
+    "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",
+    "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"
 ]
 
 def get_groq_client():
-    """自动轮换 Key"""
-    random.shuffle(API_KEYS)  # 每次打乱顺序，避免总是用同一个
+    random.shuffle(API_KEYS)
     for key in API_KEYS:
         try:
             from groq import Groq
             client = Groq(api_key=key)
-            # 测试一下是否可用
+            # 简单测试是否可用
             client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": "hi"}],
@@ -26,7 +25,7 @@ def get_groq_client():
             return client
         except:
             continue
-    return None  # 所有 Key 都不可用
+    return None
 
 # ==================== 最新知识库 ====================
 KNOWLEDGE = """
